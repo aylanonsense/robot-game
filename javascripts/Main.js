@@ -12,12 +12,16 @@ define([
 		canvas.setAttribute("height", Constants.HEIGHT);
 		var ctx = canvas.getContext("2d");
 
+		//create new game
+		var game = new Game(ctx);
+		game.reset();
+
 		//add mouse handler
 		canvas.onmousedown = onMouseEvent;
 		document.onmouseup = onMouseEvent;
 		document.onmousemove = onMouseEvent;
 		function onMouseEvent(evt) {
-			Game.onMouseEvent(evt.type,
+			game.onMouseEvent(evt.type,
 				evt.clientX - canvas.offsetLeft + document.body.scrollLeft,
 				evt.clientY - canvas.offsetTop + document.body.scrollTop);
 		}
@@ -34,12 +38,9 @@ define([
 			if(Constants.KEY_BINDINGS[evt.which] &&
 				keyboard[Constants.KEY_BINDINGS[evt.which]] !== isDown) {
 				keyboard[Constants.KEY_BINDINGS[evt.which]] = isDown;
-				Game.onKeyboardEvent(Constants.KEY_BINDINGS[evt.which], isDown, keyboard);
+				game.onKeyboardEvent(Constants.KEY_BINDINGS[evt.which], isDown, keyboard);
 			}
 		}
-
-		//reset the game
-		Game.reset();
 
 		//kick off the game loop
 		var prevTime = performance.now();
@@ -53,8 +54,8 @@ define([
 				t = Math.min((time - prevTime) / 1000, 3 / framesPerSecond);
 			}
 			t *= Constants.TIME_SCALE;
-			Game.update(t);
-			Game.render(ctx);
+			game.update(t);
+			game.render();
 			prevTime = time;
 			scheduleLoop();
 		}

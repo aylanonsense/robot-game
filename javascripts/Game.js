@@ -1,111 +1,82 @@
 define([
-	'jquery',
-	'game/Player',
-	'game/Constants',
-	'game/level/Level1'
+	'Constants',
+	'math/Vector',
+	'entity/Bullet'
 ], function(
-	$,
-	Player,
 	Constants,
-	Level
+	Vector,
+	Bullet
 ) {
-	var player = new Player(0, 0);
-	var grapples = [];
-	var camera = { x: 0, y: 0 };
-	var level = new Level();
-	var keyboard = {};
-	player.pos.x = level.playerStartPoint.x;
-	player.pos.y = level.playerStartPoint.y;
+	function Game(ctx) {
+		var self = this;
+		this.entities = [];
+		this.ctx = ctx;
+		this.camera = { x: 0, y: 0, scale: 1.0 };
+		this.draw = {
+			line: function(color, thickness, x1, y1, x2, y2) {
+				ctx.strokeStyle = color;
+				ctx.lineWidth = thickness;
+				ctx.beginPath();
+				ctx.moveTo(x1 * self.camera.scale - self.camera.x,
+					y1 * self.camera.scale - self.camera.y);
+				ctx.lineTo(x2 * self.camera.scale - self.camera.x,
+					y2 * self.camera.scale - self.camera.y);
+				ctx.stroke();
+			},
+			circle: {
+				fill: function(color, x, y, radius) {
+					ctx.fillStyle = color;
+					ctx.beginPath();
+					ctx.arc(x * self.camera.scale - self.camera.x,
+						y * self.camera.scale - self.camera.y,
+						radius * self.camera.scale, 0, 2 * Math.PI);
+					ctx.fill();
+				}
+			},
+			rect: {
+				stroke: function(color, thickness, x, y, width, height) {
+					ctx.strokeStyle = color;
+					ctx.lineWidth = thickness;
+					ctx.strokeRect(x * self.camera.scale - self.camera.x,
+						 y * self.camera.scale - self.camera.y,
+						width * self.camera.scale, height * self.camera.scale);
+				},
+				fill: function(color, x, y, width, height) {
+					ctx.fillStyle = color;
+					ctx.fillRect(x * self.camera.scale - self.camera.x,
+						 y * self.camera.scale - self.camera.y,
+						width * self.camera.scale, height * self.camera.scale);
+				}
+			}
+		};
+	}
+	Game.prototype.reset = function() {
+		this.entities = [];
+		this.entities.push(new Bullet({
+			pos: new Vector(400, 300),
+			vel: new Vector(100, 0)
+		}));
+	};
+	Game.prototype.update = function(t) {
+		for(var i = 0; i < this.entities.length; i++) {
+			this.entities[i].update(t);
+		}
+	};
+	Game.prototype.render = function() {
+		//draw background color
+		this.ctx.fillStyle = '#fff';
+		this.ctx.fillRect(0, 0, Constants.WIDTH, Constants.HEIGHT);
 
-	return {
-		reset: function() {},
-		update: function(t) {
-			//everything moves before the player
-			for(var i = 0; i < grapples.length; i++) {
-				if(!grapples[i].isDead) {
-					grapples[i].move();
-					grapples[i].checkForCollisions(level.tileGrid);
-				}
-			}
-
-			//then the player moves
-			var moveDirX = keyboard.MOVE_LEFT ? -1 : (keyboard.MOVE_RIGHT ? 1 : 0);
-			var moveDirY = keyboard.MOVE_UP ? -1 : (keyboard.MOVE_DOWN ? 1 : 0);
-			player.planMovement(moveDirX, moveDirY);
-			while(player.hasMovementRemaining()) {
-				//move the player forward a bit
-				player.move();
-				player.checkForCollisions(level.tileGrid);
-			}
-
-			//then the grapples may affect the player -- outside the loop above for simplicity
-			for(i = 0; i < grapples.length; i++) {
-				if(!grapples[i].isDead) {
-					grapples[i].applyForceToPlayer();
-				}
-			}
-			player.checkForCollisions(level.tileGrid);
-			player.tick();
-
-			//the camera adjusts to follow the player
-			camera.x = Math.round(player.pos.x - Constants.WIDTH / 2);
-			camera.y = Math.round(player.pos.y - Constants.HEIGHT / 2 - 0.12 * Constants.HEIGHT);
-		},
-		render: function(ctx) {
-			ctx.fillStyle = '#fff';
-			ctx.fillRect(0, 0, Constants.WIDTH, Constants.HEIGHT);
-			level.backgroundTileGrid.render(ctx, camera);
-			level.tileGrid.render(ctx, camera);
-			for(var i = 0; i < level.obstacles.length; i++) {
-				level.obstacles[i].render(ctx, camera);
-			}
-			for(i = 0; i < grapples.length; i++) {
-				if(!grapples[i].isDead) {
-					grapples[i].render(ctx, camera);
-				}
-			}
-			player.render(ctx, camera);
-		},
-		onMouseEvent: function(type, x, y) {
-			if(type === 'mousedown') {
-				var numMissedGrapples = 0;
-				for(var i = 0; i < grapples.length; i++) {
-					if(!grapples[i].isDead && !grapples[i].isLatched) {
-						numMissedGrapples++;
-					}
-				}
-				if(numMissedGrapples === 0) {
-					grapples = [];
-					var grapple = player.shootGrapple(x + camera.x, y + camera.y);
-					if(keyboard.PULL_GRAPPLES) {
-						grapple.startRetracting();
-					}
-					grapples.push(grapple);
-				}
-			}
-		},
-		onKeyboardEvent: function(key, isDown, kb) {
-			keyboard = kb;
-			if(isDown) {
-				if(key === 'JUMP') {
-					player.jump();
-				}
-				else if(key === 'PULL_GRAPPLES') {
-					for(var i = 0; i < grapples.length; i++) {
-						if(!grapples[i].isDead) {
-							grapples[i].startRetracting();
-						}
-					}
-				}
-			}
-			else {
-				if(key === 'JUMP') {
-					player.stopJumping();
-				}
-				else if(key === 'PULL_GRAPPLES') {
-					grapples = [];
+		//render entities
+		for(var renderLayer = 0; renderLayer < 7; renderLayer++) {
+			for(var i = 0; i < this.entities.length; i++) {
+				if(this.entities[i].renderLayer === renderLayer) {
+					this.entities[i].render(this.draw);
 				}
 			}
 		}
 	};
+	Game.prototype.onMouseEvent = function(type, x, y) {};
+	Game.prototype.onKeyboardEvent = function(key, isDown, keyboard) {};
+	return Game;
 });
